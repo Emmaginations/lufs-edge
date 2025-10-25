@@ -3,6 +3,7 @@ import supabase from './supabase';
 
 function App() {
   const [skaters, setSkaters] = useState([]);
+  const [events, setEvents] = useState([]);
   const [formData, setFormData] = useState({
     skaterName: '',
     eventName: '',
@@ -12,27 +13,41 @@ function App() {
   });
   const [errors, setErrors] = useState({});
 
-  const eventOptions = ['100m Sprint', 'Relay', 'Long Distance'];
-
+  // Fetch skaters and events from Supabase
   useEffect(() => {
-    const fetchSkaters = async () => {
-      const { data, error } = await supabase
-        .from('"Skater"')
-        .select('SkaterID, FirstName, LastName');
+    const fetchData = async () => {
+      try {
+        const { data: skaterData, error: skaterError } = await supabase
+          .from('Skater')
+          .select('SkaterID, FirstName, LastName');
 
-      if (!error) setSkaters(data);
+        if (skaterError) console.error('Error fetching skaters:', skaterError);
+        else setSkaters(skaterData || []);
+
+        const { data: eventData, error: eventError } = await supabase
+          .from('Event')
+          .select('EventID, EventName');
+
+        if (eventError) console.error('Error fetching events:', eventError);
+        else setEvents(eventData || []);
+      } catch (err) {
+        console.error('Unexpected fetch error:', err);
+      }
     };
 
-    fetchSkaters();
+    fetchData();
   }, []);
 
   const validate = () => {
     const newErrors = {};
     if (!formData.skaterName) newErrors.skaterName = 'Skater is required.';
     if (!formData.eventName) newErrors.eventName = 'Event name is required.';
-    if (!(+formData.placement > 0 && +formData.placement <= 24)) newErrors.placement = 'Placement must be 1-24.';
-    if (!(+formData.groupSize > 0 && +formData.groupSize <= 24)) newErrors.groupSize = 'Group size must be 1-24.';
-    if (formData.group && !/^[A-Z]$/.test(formData.group)) newErrors.group = 'Group must be a single capital letter.';
+    if (!(+formData.placement > 0 && +formData.placement <= 24))
+      newErrors.placement = 'Placement must be 1-24.';
+    if (!(+formData.groupSize > 0 && +formData.groupSize <= 24))
+      newErrors.groupSize = 'Group size must be 1-24.';
+    if (formData.group && !/^[A-Z]$/.test(formData.group))
+      newErrors.group = 'Group must be a single capital letter.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -42,8 +57,8 @@ function App() {
 
     const [firstName, lastName] = formData.skaterName.split(' ');
 
-    // Step 1: Ensure Event exists
-    let { data: eventData, error: eventError } = await supabase
+    // Ensure Event exists
+    let { data: eventData } = await supabase
       .from('Event')
       .select('EventID')
       .eq('EventName', formData.eventName)
@@ -52,18 +67,17 @@ function App() {
 
     let eventID;
     if (!eventData) {
-      const { data: newEvent, error: createError } = await supabase
+      const { data: newEvent } = await supabase
         .from('Event')
         .insert([{ EventName: formData.eventName, IsChamp: false, CompID: 1 }])
         .select()
         .single();
-
       eventID = newEvent?.EventID;
     } else {
       eventID = eventData.EventID;
     }
 
-    // Step 2: Get Points value
+    // Get Points value
     const { data: pointData } = await supabase
       .from('PointValues')
       .select('Points')
@@ -73,7 +87,7 @@ function App() {
 
     const points = pointData?.Points ?? 0;
 
-    // Step 3: Get Skater ID
+    // Get Skater ID
     const { data: skater } = await supabase
       .from('Skater')
       .select('SkaterID')
@@ -83,7 +97,7 @@ function App() {
 
     const skaterID = skater?.SkaterID;
 
-    // Step 4: Post Result
+    // Post Result
     const result = {
       EventID: eventID,
       SkaterID: skaterID,
@@ -114,7 +128,7 @@ function App() {
         >
           <option value="">Select Skater</option>
           {skaters.map((s) => (
-            <option key={s.SkaterID}>
+            <option key={s.SkaterID} value={`${s.FirstName} ${s.LastName}`}>
               {s.FirstName} {s.LastName}
             </option>
           ))}
@@ -122,7 +136,7 @@ function App() {
         {errors.skaterName && <p>{errors.skaterName}</p>}
       </div>
 
-      {/* Event Name */}
+      {/* Event Dropdown */}
       <div>
         <label>Event Name:</label>
         <select
@@ -130,8 +144,10 @@ function App() {
           onChange={(e) => setFormData({ ...formData, eventName: e.target.value })}
         >
           <option value="">Select Event</option>
-          {eventOptions.map((name) => (
-            <option key={name} value={name}>{name}</option>
+          {events.map((e) => (
+            <option key={e.EventID} value={e.EventName}>
+              {e.EventName}
+            </option>
           ))}
         </select>
         {errors.eventName && <p>{errors.eventName}</p>}
