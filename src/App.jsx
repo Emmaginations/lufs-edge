@@ -17,7 +17,7 @@ function App() {
   useEffect(() => {
     const fetchSkaters = async () => {
       const { data, error } = await supabase
-        .from('Skater')
+        .from('"Skater"')
         .select('SkaterID, FirstName, LastName');
 
       if (!error) setSkaters(data);
